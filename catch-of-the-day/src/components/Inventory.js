@@ -6,17 +6,26 @@ class Inventory extends React.Component {
   constructor() {
     super()
     this.renderInventory = this.renderInventory.bind(this)
-    this.renderLogin = this.renderLogin.bind(this)
-    this.authenticate = this.authenticate.bind(this)
-    this.authHandler = this.authHandler.bind(this)
-    this.handleChange = this.handleChange.bind(this)
-    this.state = {
-      uid: null,
-      owner: null
-    }
+    // this.renderLogin = this.renderLogin.bind(this)---------------->>>>>>>>>>>> REPLACED WITH ARROW FUNCTIONS
+    // this.authenticate = this.authenticate.bind(this)
+    // this.logout = this.logout.bind(this)
+    // this.authHandler = this.authHandler.bind(this)
+    // this.handleChange = this.handleChange.bind(this)
+  }
+state = {
+  uid: null,
+  owner: null
+}
+
+  componentDidMount(){
+    base.onAuth((user) => {
+      if(user) {
+        this.authHandler(null, {user})
+      }
+    })
   }
 
-  handleChange(e, key) {
+  handleChange = (e, key) => {
     const fish = this.props.fishes[key]
     const updatedFish = {
       ...fish,
@@ -25,16 +34,43 @@ class Inventory extends React.Component {
     this.props.updateFish(key, updatedFish)
   }
 
-  authenticate(provider) {
+  authenticate = (provider) => {
     console.log(`Trying to login with ${provider}`)
     base.authWithOAuthPopup(provider, this.authHandler)
   }
 
-  authHandler(err, authData) {
-    console.log('Auth Data', authData)
+  logout = () => {
+    base.unauth()
+    this.setState({ uid: null })
   }
 
-  renderLogin() {
+  authHandler = (err, authData) => {
+    console.log('Auth Data', authData)
+    if(err) {
+      console.error(err)
+      return
+    }
+    //grab store info
+    const storeRef = base.database().ref(this.props.storeId)
+
+    //query firebase for store database
+    storeRef.once('value', (snapshot) => {
+      const data = snapshot.val() || {}
+
+      //claim it as your own if there is no owner
+      if(!data.owner) {
+        storeRef.set({
+          owner: authData.user.uid
+        })
+      }
+      this.setState({
+        uid: authData.user.uid,
+        owner: data.owner || authData.user.uid
+      })
+    })
+  }
+
+  renderLogin = () => {
     return(
       <nav className="login">
         <h2>Inventory</h2>
@@ -74,7 +110,7 @@ class Inventory extends React.Component {
   }
 
   render() {
-    const logout = <button>Log Out</button>
+    const logout = <button onClick={this.logout}>Log Out</button>
     //check if they are not logged in at all
     if(!this.state.uid) {
       return <div>{this.renderLogin()}</div>
@@ -101,14 +137,15 @@ class Inventory extends React.Component {
       </div>
     )
   }
-}
 
-Inventory.propTypes = {
-  fishes: React.PropTypes.object.isRequired,
-  updateFish: React.PropTypes.func.isRequired,
-  removeFish: React.PropTypes.func.isRequired,
-  addFish: React.PropTypes.func.isRequired,
-  loadSamples: React.PropTypes.func.isRequired
+  static propTypes = {
+    fishes: React.PropTypes.object.isRequired,
+    updateFish: React.PropTypes.func.isRequired,
+    removeFish: React.PropTypes.func.isRequired,
+    addFish: React.PropTypes.func.isRequired,
+    loadSamples: React.PropTypes.func.isRequired,
+    storeId: React.PropTypes.string.isRequired
+  }
 }
 
 export default Inventory
